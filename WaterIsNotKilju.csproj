@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net46</TargetFramework>
+    <AssemblyName>WaterIsNotKilju</AssemblyName>
+    <RootNamespace>WaterIsNotKilju</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <!-- Don't copy deps to output — MSC provides everything at runtime -->
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <!--
+    Game DLL references. Update GameDir to point at your MSC install.
+    On Linux/Proton this is typically under:
+      ~/.steam/steam/steamapps/common/My Summer Car/
+    or inside a Proton prefix:
+      ~/.steam/steam/steamapps/compatdata/516750/pfx/drive_c/.../
+  -->
+  <PropertyGroup>
+    <GameDir>$(HOME)/.steam/steam/steamapps/common/My Summer Car</GameDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GameDir)/My Summer Car_Data/Managed/Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MSCLoader">
+      <HintPath>$(GameDir)/Mods/MSCLoader.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(GameDir)/My Summer Car_Data/Managed/UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(GameDir)/My Summer Car_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(GameDir)/My Summer Car_Data/Managed/UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="HutongGames.PlayMaker">
+      <HintPath>$(GameDir)/My Summer Car_Data/Managed/HutongGames.PlayMaker.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    Build: dotnet build
+    Output DLL goes to: bin/Debug/net46/WaterIsNotKilju.dll
+    Copy that to: $(GameDir)/Mods/WaterIsNotKilju/WaterIsNotKilju.dll
+  -->
+
+</Project>
