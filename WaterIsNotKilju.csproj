@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net46</TargetFramework>
+    <TargetFramework>net35</TargetFramework>
     <AssemblyName>WaterIsNotKilju</AssemblyName>
     <RootNamespace>WaterIsNotKilju</RootNamespace>
     <LangVersion>latest</LangVersion>
@@ -45,7 +45,7 @@
 
   <!--
     Build: dotnet build
-    Output DLL goes to: bin/Debug/net46/WaterIsNotKilju.dll
+    Output DLL goes to: bin/Debug/net35/WaterIsNotKilju.dll
     Copy that to: $(GameDir)/Mods/WaterIsNotKilju/WaterIsNotKilju.dll
   -->
 
