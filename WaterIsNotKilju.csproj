@@ -17,32 +17,28 @@
       ~/.steam/steam/steamapps/compatdata/516750/pfx/drive_c/.../
   -->
   <PropertyGroup>
-    <GameDir>$(HOME)/.steam/steam/steamapps/common/My Summer Car</GameDir>
+    <GameDir>$(HOME)/.local/share/Steam/steamapps/common/My Summer Car/</GameDir>
   </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
-      <HintPath>$(GameDir)/My Summer Car_Data/Managed/Assembly-CSharp.dll</HintPath>
+      <HintPath>$(GameDir)/mysummercar_Data/Managed/Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="MSCLoader">
-      <HintPath>$(GameDir)/Mods/MSCLoader.dll</HintPath>
+      <HintPath>$(GameDir)/mysummercar_Data/Managed/MSCLoader.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>$(GameDir)/My Summer Car_Data/Managed/UnityEngine.dll</HintPath>
+      <HintPath>$(GameDir)/mysummercar_Data/Managed/UnityEngine.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(GameDir)/My Summer Car_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.PhysicsModule">
-      <HintPath>$(GameDir)/My Summer Car_Data/Managed/UnityEngine.PhysicsModule.dll</HintPath>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(GameDir)/mysummercar_Data/Managed/UnityEngine.UI.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="HutongGames.PlayMaker">
-      <HintPath>$(GameDir)/My Summer Car_Data/Managed/HutongGames.PlayMaker.dll</HintPath>
+      <HintPath>$(GameDir)/mysummercar_Data/Managed/PlayMaker.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
