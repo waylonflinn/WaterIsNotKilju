@@ -1,127 +1,100 @@
 # Water Is Not Kilju
 
 A My Summer Car mod that makes plastic bottles correctly display **"Water"**
-instead of "Kilju" in the hover/helper text when they're filled with water.
+instead of "Kilju" in the hover/helper text when they're filled with water,
+and plays the correct drinking sound effect.
 
 ## Prerequisites
 
 - My Summer Car installed and running (via Proton on Linux is fine)
 - [MSCLoader](https://github.com/piotrulos/MSCModLoader) installed
-- [MSCToolset](https://www.nexusmods.com/mysummercar/mods/710) installed (for investigation)
+- [Developer Toolkit](https://www.racedepartment.com/downloads/developer-toolkit.17214/) (for investigation)
 - .NET SDK for building (`dotnet build`)
-- VS Code with C# extension (recommended)
 
 ## Build & Install
 
-1. Edit `WaterIsNotKilju.csproj` — set `GameDir` to your MSC install path:
+1. Edit `WaterIsNotKilju.csproj` — set `GameDir` to your MSC install path
+2. Build: `dotnet build`
+3. Copy output DLL to mods folder:
    ```
-   ~/.steam/steam/steamapps/common/My Summer Car
+   cp bin/Debug/net46/WaterIsNotKilju.dll "$GameDir/Mods/WaterIsNotKilju/WaterIsNotKilju.dll"
    ```
-   If running via Proton, the path may be inside the compatibility prefix. Check
-   `~/.steam/steam/steamapps/compatdata/516750/pfx/drive_c/...`
-
-2. Build:
-   ```bash
-   cd forge/WaterIsNotKilju
-   dotnet build
-   ```
-
-3. Copy the output DLL to your mods folder:
-   ```bash
-   cp bin/Debug/net46/WaterIsNotKilju.dll \
-     "$GameDir/Mods/WaterIsNotKilju/WaterIsNotKilju.dll"
-   ```
-
-4. Launch MSC and check the MSCLoader console (`~` key) for `[WaterIsNotKilju]` messages.
+4. Launch MSC and check console (`~` key) for `[WaterIsNotKilju]` messages
 
 ---
 
-## ⚠️ Before the mod will work: MSCToolset Investigation
+## Architecture
 
-The mod code contains **TODO placeholders** that must be filled in by inspecting
-the game's live FSMs. This is the critical step — you need to run MSC with
-MSCToolset and discover how the plastic bottle actually works internally.
+The mod uses two different strategies for the two fixes:
 
-### Step 1: Find the bottle game object
+### Text Fix: Update() loop (PartInspector pattern)
 
-1. Launch MSC with MSCLoader + MSCToolset
-2. Load a save that has a plastic bottle (empty, with water, or with kilju)
-3. Press **Ctrl+Z** to open the MSCToolset inspector
-4. In the search bar, type `plastic` or `bottle` and look for the bottle object
-5. Write down the **exact game object name/path**
+Instead of hooking specific FSM states, we check `GUIinteraction` each frame.
+When the game sets it to "Kilju", we raycast to identify the item, check
+`KiljuAlc` on its "Use" FSM, and override to "Water" if `KiljuAlc == 0`.
 
-   Common patterns: `BottlePlastic`, `ITEMS/BottlePlastic`, etc.
+This approach:
+- Handles unlimited instances automatically
+- Doesn't require knowing which state sets the text
+- Is proven (PartInspector uses the same pattern)
+- Is simple and robust against game updates
 
-   ➡️ **Update `BottleObjectName` in `WaterIsNotKiljuMod.cs`**
+### Sound Fix: FSM state injection
 
-### Step 2: Identify the FSM that handles hover text
+The sound fix requires precise timing (swap audio clip before `AudioPlay` fires),
+so we inject a custom `FsmStateAction` into the relevant FSM state. This still
+requires knowing the exact state name and audio source.
 
-1. Click the orange `?` next to the bottle object in MSCToolset
-2. Switch to the **PlayMakerFSM** tab
-3. You'll see one or more FSMs listed. Common names: `Data`, `Interaction`, `States`, `Use`
-4. For each FSM, click **Show States** and look through the state actions for one that:
-   - Sets `GUIinteraction` (a global string variable)
-   - Or calls something like `SetFsmString` on `GUIinteraction`
-5. Also look for states triggered by raycast/look-at — these are the "interaction" FSMs
+---
 
-   ➡️ **Update `BottleFsmName` with the FSM that sets hover text**
+## What We Know
 
-### Step 3: Find the state that writes the text
+| Constant | Value | Status |
+|----------|-------|--------|
+| Object name | Likely `kilju(itemx)` | ⚠️ Needs confirmation via BottleInspector |
+| FSM with KiljuAlc | Likely `Use` | ⚠️ Needs confirmation via BottleInspector |
+| KiljuAlc type | `FsmFloat` | ✅ Confirmed |
+| KiljuAlc scope | Local FSM variable | ✅ Confirmed (on PlayMakerFSM section) |
+| KiljuAlc values | `0` = water, `>0` = kilju | ✅ Confirmed |
+| GUIinteraction | Global `FsmString` | ✅ Confirmed (PlayMakerGlobals) |
+| Object tag | `ITEM` | ✅ Confirmed |
 
-1. In the FSM from Step 2, go through each state's Actions
-2. Look for an action like `SetFsmString` or `SetProperty` that sets
-   `GUIinteraction` to "Kilju"
-3. Note the **state name** where this happens
+## What We Still Need
 
-   ➡️ **Update `SetTextStateName`**
+| Constant | What it is | Status |
+|----------|-----------|--------|
+| `BottleObjectName` | Exact game object name | ⚠️ Needs BottleInspector run |
+| `BottleFsmName` | FSM name containing KiljuAlc | ⚠️ Likely "Use" — needs confirmation |
+| `DrinkSoundStateName` | State that plays drinking sound | ❌ TODO (sound fix only) |
+| `WaterClipSource` | Where to find water drink sound | ❌ TODO (sound fix only) |
 
-### Step 4: Find the content-tracking variable
+---
 
-This is the most important discovery. You need to figure out how the game
-knows the bottle contains water vs kilju. Look at the bottle's FSM variables:
+## Investigation Steps
 
-1. Click **Show Variables** on the bottle's FSM(s)
-2. Look for a variable that changes based on content. It could be:
-   - An `FsmString` with values like `"water"`, `"kilju"`, `"empty"`
-   - An `FsmInt` (e.g., 0=empty, 1=water, 2=kilju)
-   - An `FsmBool` (true=kilju, false=water, or vice versa)
-   - A variable on a *different* FSM on the same object
-3. To verify, pick up two bottles (one water, one kilju) and check whether
-   the variable differs between them
+### Quick method: Use BottleInspector
 
-   ➡️ **Update `ContentVarName` with the variable name**
+1. Add `BottleInspector.cs` to the project alongside `WaterIsNotKiljuMod.cs`
+2. Build and install both mods
+3. Launch MSC with a plastic bottle in your save
+4. Open the MSCLoader console (`~` key)
+5. Search for `[BottleInspector]` lines — it dumps:
+   - Exact game object names and paths
+   - All FSMs, variables, states, and actions
+   - Which objects have the `ITEM` tag
+6. It also logs `GUIinteraction` value changes for 5 seconds
+   — look at a water bottle in-game to see what text appears
+7. Remove `BottleInspector.cs` once you have the info
 
-   ➡️ **Update `WaterContentValue` with the value that means "water"**
+### Manual method: Developer Toolkit
 
-   Also update the **variable type check** in `ContentCheckAction.OnEnter()` —
-   the code has commented examples for FsmString, FsmInt, FsmBool. Uncomment
-   the one that matches and remove the default.
-
-### Step 5: Handle dynamic bottle instances (IMPORTANT)
-
-MSC may clone bottle objects at runtime (each bottle in the world could be a
-separate instance). If bottles are instantiated from a prefab:
-
-- Our `HookBottleFsm()` only hooks **one** object found by `GameObject.Find()`
-- We may need to hook **all** bottle instances, or hook the prefab so clones
-  inherit the modification
-- Check in MSCToolset: are there multiple bottle objects? Does `GameObject.Find()`
-  find the right one?
-
-If multiple instances exist, we'll need to iterate:
-```csharp
-// Potential approach for multiple instances:
-foreach (var bottle in GameObject.FindObjectsOfType<PlayMakerFSM>())
-{
-    if (bottle.FsmName == BottleFsmName && bottle.gameObject.name.Contains("BottlePlastic"))
-    {
-        // Hook each one
-    }
-}
-```
-
-This is something to evaluate after the initial investigation. The current code
-may work fine if the hover text is set via global variable (which it likely is).
+1. Launch MSC with Developer Toolkit
+2. Search for `kilju` or `juiceconcentrate` in the object hierarchy
+3. Note the exact game object name (e.g., `kilju(itemx)`)
+4. Click the `?` next to the object → PlayMakerFSM tab
+5. List all FSMs on the object — look for one named `Use`
+6. In the `Use` FSM, confirm `KiljuAlc` is listed as a Float variable
+7. Browse states to find ones with `AudioPlay` actions (for sound fix)
 
 ---
 
@@ -129,24 +102,28 @@ may work fine if the hover text is set via global variable (which it likely is).
 
 | File | Purpose |
 |------|---------|
-| `WaterIsNotKiljuMod.cs` | Main mod — hooks FSM, corrects hover text |
-| `WaterIsNotKilju.csproj` | Build config — reference paths to game DLLs |
+| `WaterIsNotKiljuMod.cs` | Main mod — text fix (Update loop) + sound fix (FSM injection) |
+| `BottleInspector.cs` | Temporary debug mod — dumps all FSM info |
+| `WaterIsNotKilju.csproj` | Build config — references to game DLLs |
+| `install.sh` | Build + copy to game Mods folder |
+| `README.md` | This file |
 
-### Key method: `HookBottleFsm()`
+### How the text fix works
 
-This is where the magic happens:
+1. Each frame in `Mod_OnUpdate()`, check if `GUIinteraction == "Kilju"`
+2. If so, raycast to find what the player is looking at
+3. Check if the object name contains "kilju" (the bottle pattern)
+4. Get the `Use` FSM on that object and read `KiljuAlc`
+5. If `KiljuAlc == 0`, override `GUIinteraction` to `"Water"`
 
-1. Finds the bottle game object by name
-2. Locates the FSM that handles interaction text
-3. Finds the specific state that sets the hover label
-4. Appends a `ContentCheckAction` to that state's action list
+### How the sound fix works (when configured)
 
-The `ContentCheckAction` runs **after** the game's original actions. If the
-game just set `GUIinteraction = "Kilju"` but the content variable says water,
-we overwrite it to `"Water"`.
-
-This approach (appending to an existing state) is the least intrusive — we
-don't replace or modify any original game actions, we just add a post-check.
+1. At load time, find all bottle objects and their "Use" FSMs
+2. Find the state that plays the drinking sound
+3. Append a `DrinkSoundFixAction` to that state
+4. When the state runs, our action checks `KiljuAlc`:
+   - If `== 0` → swaps `AudioSource.clip` to the water sound
+   - If `> 0` → leaves the clip unchanged
 
 ---
 
@@ -154,12 +131,10 @@ don't replace or modify any original game actions, we just add a post-check.
 
 | Symptom | Likely Cause |
 |---------|-------------|
-| Mod loads but doesn't correct text | TODOs not filled in, or wrong variable/state names |
-| `[WaterIsNotKilju] Could not find game object` | Wrong `BottleObjectName` — check MSCToolset hierarchy |
-| `[WaterIsNotKilju] Could not find FSM` | Wrong `BottleFsmName` — list all FSMs on the object |
-| `[WaterIsNotKilju] Could not find state` | Wrong `SetTextStateName` — list all states in the FSM |
-| Error reading content variable | Variable type mismatch — update the check in `ContentCheckAction` |
+| Mod loads but doesn't correct text | `IsBottleObject()` not matching the game object name — check console |
+| `[BottleInspector] No bottle objects found` | No plastic bottle in the current save |
+| Wrong text still shows | `BottleFsmName` wrong — KiljuAlc FSM isn't "Use" on your object |
+| Sound plays kilju even with water | Sound fix not configured — need `DrinkSoundStateName` |
 | Mod doesn't appear in MSCLoader | DLL not in `Mods/WaterIsNotKilju/WaterIsNotKilju.dll` |
 
-To debug, open the MSCLoader console in-game (`~` key) and look for
-`[WaterIsNotKilju]` log lines.
+Check the MSCLoader console (`~` key) for `[WaterIsNotKilju]` log lines.
