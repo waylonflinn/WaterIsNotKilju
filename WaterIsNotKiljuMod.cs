@@ -43,6 +43,7 @@ namespace WaterIsNotKilju
 
         // The global PlayMaker variable used to display the hover text.
         private const string GuiInteractionVar = "GUIinteraction";
+        private const string PickedPartVar = "PickedPart";
 
         // ─── Sound Fix Configuration ────────────────────────────────────
         // TODO: Fill these in after Developer Toolkit investigation of the
@@ -65,7 +66,7 @@ namespace WaterIsNotKilju
 
         // ─── Runtime State ───────────────────────────────────────────────
 
-        private FsmString _guiInteraction;
+        private FsmString _displayGui;
         private AudioClip _waterClip;
         private bool _soundHooksInstalled;
 
@@ -80,14 +81,18 @@ namespace WaterIsNotKilju
         private void Mod_OnLoad()
         {
             // Get the global GUIinteraction variable reference once.
-            _guiInteraction = PlayMakerGlobals.Instance.Variables
-                .FindFsmString(GuiInteractionVar);
+            _displayGui = PlayMakerGlobals.Instance.Variables
+                .FindFsmString(PickedPartVar);
 
-            if (_guiInteraction == null)
+            if (_displayGui == null)
             {
                 ModConsole.Error("[WaterIsNotKilju] Could not find global variable: " +
-                                 GuiInteractionVar);
+                                 PickedPartVar);
                 return;
+            }
+            else
+            {
+                ModConsole.Log("[WaterIsNotKilju] _displayGui '" + _displayGui.Value + "'.");
             }
 
             ModConsole.Log("[WaterIsNotKilju] Initialized. Text fix active.");
@@ -126,18 +131,23 @@ namespace WaterIsNotKilju
 
         private void Mod_OnUpdate()
         {
-            if (_guiInteraction == null)
+            if (_displayGui == null)
                 return;
 
-            string guiVal = _guiInteraction.Value;
-            bool log = ShouldLog();
+            string guiVal = _displayGui.Value;
+            bool log = false;//ShouldLog();
 
-            // Only intervene when the game is about to display "Kilju"
-            if (guiVal != "Kilju")
+            // DEBUG: Always log what GUIinteraction shows, regardless of value.
+            // This tells us what the game actually sets when looking at items.
+            // if (log && !string.IsNullOrEmpty(guiVal))
+            //     ModConsole.Log($"[WaterIsNotKilju DEBUG] GUIinteraction = \"{guiVal}\"");
+
+            // Only run our fix when the game shows something related to kilju/water
+            if (guiVal != "kilju")
                 return;
 
             if (log)
-                ModConsole.Log("[WaterIsNotKilju DEBUG] GUIinteraction = \"Kilju\" — checking raycast...");
+                ModConsole.Log($"[WaterIsNotKilju DEBUG] GUIinteraction matched: \"{guiVal}\" — checking raycast...");
 
             // Raycast to find what the player is looking at
             RaycastHit hit = UnifiedRaycast.GetRaycastHit();
@@ -149,8 +159,8 @@ namespace WaterIsNotKilju
             {
                 GameObject go = hit.collider.gameObject;
 
-                if (log)
-                    ModConsole.Log($"[WaterIsNotKilju DEBUG] Hit object: \"{go.name}\" tag={go.tag} parent={(go.transform.parent != null ? go.transform.parent.name : "none")}");
+                // if (log)
+                //     ModConsole.Log($"[WaterIsNotKilju DEBUG] Hit object: \"{go.name}\" tag={go.tag} parent={(go.transform.parent != null ? go.transform.parent.name : "none")}");
 
                 // Check if this is a kilju/water bottle
                 // MSC items use the (itemx) suffix for pickable instances.
@@ -178,47 +188,32 @@ namespace WaterIsNotKilju
                 PlayMakerFSM fsm = go.GetPlayMaker(BottleFsmName);
                 if (fsm == null)
                 {
-                    // Always log FSM listing — it's critical for debugging
-                    ModConsole.Warning($"[WaterIsNotKilju DEBUG] FSM \"{BottleFsmName}\" not found on \"{go.name}\". Listing FSMs:");
-                    foreach (var f in go.GetComponents<PlayMakerFSM>())
-                        ModConsole.Log($"  FSM: {f.FsmName}");
+                    // // Always log FSM listing — it's critical for debugging
+                    // ModConsole.Warning($"[WaterIsNotKilju DEBUG] FSM \"{BottleFsmName}\" not found on \"{go.name}\". Listing FSMs:");
+                    // foreach (var f in go.GetComponents<PlayMakerFSM>())
+                    //     ModConsole.Log($"  FSM: {f.FsmName}");
 
-                    // Try other FSMs on the object if "Use" isn't found
-                    fsm = FindFsmWithVariable(go);
-                    if (fsm != null)
-                        ModConsole.Log($"[WaterIsNotKilju DEBUG] Found KiljuAlc on FSM \"{fsm.FsmName}\" instead.");
+                    // // Try other FSMs on the object if "Use" isn't found
+                    // fsm = FindFsmWithVariable(go);
+                    // if (fsm != null)
+                    //     ModConsole.Log($"[WaterIsNotKilju DEBUG] Found KiljuAlc on FSM \"{fsm.FsmName}\" instead.");
                 }
 
                 if (fsm != null)
                 {
                     FsmFloat kiljuAlc = fsm.FsmVariables.GetFsmFloat(ContentVarName);
-                    if (kiljuAlc == null)
+
+                    if (kiljuAlc.Value == WaterContentValue)
                     {
-                        // Always log variable listing — critical for debugging
-                        ModConsole.Warning($"[WaterIsNotKilju DEBUG] KiljuAlc not found on FSM \"{fsm.FsmName}\". Listing float vars:");
-                        foreach (var v in fsm.FsmVariables.FloatVariables)
-                            ModConsole.Log($"  [Float] {v.Name} = {v.Value}");
-                    }
-                    else
-                    {
-                        if (log)
-                            ModConsole.Log($"[WaterIsNotKilju DEBUG] KiljuAlc = {kiljuAlc.Value} (water threshold = {WaterContentValue})");
-                        if (kiljuAlc.Value == WaterContentValue)
-                        {
-                            _guiInteraction.Value = "Water";
+                        _displayGui.Value = "Water";
+                        if(log)
                             ModConsole.Log("[WaterIsNotKilju DEBUG] ✓ Overrode GUIinteraction to \"Water\"");
-                        }
                     }
+
                 }
-                else
-                {
-                    ModConsole.Error($"[WaterIsNotKilju DEBUG] No FSM with KiljuAlc found on \"{go.name}\"");
-                }
+
             }
-            else if (log && hit.collider == null)
-            {
-                ModConsole.Log("[WaterIsNotKilju DEBUG] Raycast hit nothing within range.");
-            }
+
         }
 
         /// <summary>
@@ -257,46 +252,46 @@ namespace WaterIsNotKilju
                 return;
             }
 
-            switch (WaterClipSource)
-            {
-                case "SceneObject":
-                    var clipObj = GameObject.Find(WaterClipPath);
-                    if (clipObj == null)
-                    {
-                        ModConsole.Error("[WaterIsNotKilju] Could not find water clip object: " +
-                                         WaterClipPath);
-                        return;
-                    }
-                    var audioSrc = clipObj.GetComponent<AudioSource>();
-                    if (audioSrc == null || audioSrc.clip == null)
-                    {
-                        ModConsole.Error("[WaterIsNotKilju] No AudioSource/clip on: " + WaterClipPath);
-                        return;
-                    }
-                    _waterClip = audioSrc.clip;
-                    ModConsole.Log("[WaterIsNotKilju] Loaded water clip from scene: " + _waterClip.name);
-                    break;
+            // switch (WaterClipSource)
+            // {
+            //     case "SceneObject":
+            //         var clipObj = GameObject.Find(WaterClipPath);
+            //         if (clipObj == null)
+            //         {
+            //             ModConsole.Error("[WaterIsNotKilju] Could not find water clip object: " +
+            //                              WaterClipPath);
+            //             return;
+            //         }
+            //         var audioSrc = clipObj.GetComponent<AudioSource>();
+            //         if (audioSrc == null || audioSrc.clip == null)
+            //         {
+            //             ModConsole.Error("[WaterIsNotKilju] No AudioSource/clip on: " + WaterClipPath);
+            //             return;
+            //         }
+            //         _waterClip = audioSrc.clip;
+            //         ModConsole.Log("[WaterIsNotKilju] Loaded water clip from scene: " + _waterClip.name);
+            //         break;
 
-                case "AssetBundle":
-                    _waterClip = LoadAssets.LoadAudioClip(this, WaterClipFilename, false);
-                    if (_waterClip == null)
-                    {
-                        ModConsole.Error("[WaterIsNotKilju] Failed to load water clip: " +
-                                         WaterClipFilename);
-                        return;
-                    }
-                    ModConsole.Log("[WaterIsNotKilju] Loaded water clip from assets: " + _waterClip.name);
-                    break;
+            //     case "AssetBundle":
+            //         _waterClip = LoadAssets.LoadAudioClip(this, WaterClipFilename, false);
+            //         if (_waterClip == null)
+            //         {
+            //             ModConsole.Error("[WaterIsNotKilju] Failed to load water clip: " +
+            //                              WaterClipFilename);
+            //             return;
+            //         }
+            //         ModConsole.Log("[WaterIsNotKilju] Loaded water clip from assets: " + _waterClip.name);
+            //         break;
 
-                case "Custom":
-                    ModConsole.Warning("[WaterIsNotKilju] Custom clip loading not implemented. " +
-                                       "Update LoadWaterClip() in the mod code.");
-                    break;
+            //     case "Custom":
+            //         ModConsole.Warning("[WaterIsNotKilju] Custom clip loading not implemented. " +
+            //                            "Update LoadWaterClip() in the mod code.");
+            //         break;
 
-                default:
-                    ModConsole.Error("[WaterIsNotKilju] Unknown WaterClipSource: " + WaterClipSource);
-                    break;
-            }
+            //     default:
+            //         ModConsole.Error("[WaterIsNotKilju] Unknown WaterClipSource: " + WaterClipSource);
+            //         break;
+            // }
         }
 
         /// <summary>
