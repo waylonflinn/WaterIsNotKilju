@@ -150,70 +150,60 @@ namespace WaterIsNotKilju
                 ModConsole.Log($"[WaterIsNotKilju DEBUG] GUIinteraction matched: \"{guiVal}\" — checking raycast...");
 
             // Raycast to find what the player is looking at
-            RaycastHit hit = UnifiedRaycast.GetRaycastHit();
+            RaycastHit[] hitList = UnifiedRaycast.GetRaycastHits();
 
-            if (log)
-                ModConsole.Log($"[WaterIsNotKilju DEBUG] Raycast hit: {(hit.collider != null ? hit.collider.gameObject.name : "nothing")} at dist={hit.distance}");
+            GameObject go = null;
 
-            if (hit.distance <= 1f && hit.collider != null)
+            foreach(RaycastHit hit in hitList)
             {
-                GameObject go = hit.collider.gameObject;
-
                 // if (log)
-                //     ModConsole.Log($"[WaterIsNotKilju DEBUG] Hit object: \"{go.name}\" tag={go.tag} parent={(go.transform.parent != null ? go.transform.parent.name : "none")}");
+                //     ModConsole.Log($"[WaterIsNotKilju DEBUG] Raycast hit: {(hit.collider != null ? hit.collider.gameObject.name : "nothing")} at dist={hit.distance}");
 
-                // Check if this is a kilju/water bottle
-                // MSC items use the (itemx) suffix for pickable instances.
-                // The collider might be on a child, so check parents too.
-                if (!IsBottleObject(go))
+                if (hit.distance <= 1f && hit.collider?.gameObject != null)
                 {
-                    if (go.transform.parent != null && IsBottleObject(go.transform.parent.gameObject))
+                    go = hit.collider.gameObject;
+                    if (IsBottleObject(go))
                     {
                         if (log)
-                            ModConsole.Log($"[WaterIsNotKilju DEBUG] Matched on parent: \"{go.transform.parent.gameObject.name}\"");
+                            ModConsole.Log($"[WaterIsNotKilju DEBUG] Found BottleObject: \"{go.name}\"");
+                        break;
+                    }
+                    else if (go.transform.parent != null && IsBottleObject(go.transform.parent.gameObject))
+                    {
+                        if (log)
+                            ModConsole.Log($"[WaterIsNotKilju DEBUG] Found BottleObject on parent: \"{go.transform.parent.gameObject.name}\"");
                         go = go.transform.parent.gameObject;
+                        break;
                     }
                     else
                     {
                         if (log)
-                            ModConsole.Log($"[WaterIsNotKilju DEBUG] Object \"{go.name}\" did not match bottle pattern. Skipping.");
-                        return;
+                                ModConsole.Log($"[WaterIsNotKilju DEBUG] Object \"{go.name}\" did not match bottle pattern. Skipping.");
+                        go = null;
                     }
                 }
-
-                if (log)
-                    ModConsole.Log($"[WaterIsNotKilju DEBUG] Bottle matched: \"{go.name}\" — looking for FSM \"{BottleFsmName}\"...");
-
-                // Get the configured FSM and check KiljuAlc
-                PlayMakerFSM fsm = go.GetPlayMaker(BottleFsmName);
-                if (fsm == null)
-                {
-                    // // Always log FSM listing — it's critical for debugging
-                    // ModConsole.Warning($"[WaterIsNotKilju DEBUG] FSM \"{BottleFsmName}\" not found on \"{go.name}\". Listing FSMs:");
-                    // foreach (var f in go.GetComponents<PlayMakerFSM>())
-                    //     ModConsole.Log($"  FSM: {f.FsmName}");
-
-                    // // Try other FSMs on the object if "Use" isn't found
-                    // fsm = FindFsmWithVariable(go);
-                    // if (fsm != null)
-                    //     ModConsole.Log($"[WaterIsNotKilju DEBUG] Found KiljuAlc on FSM \"{fsm.FsmName}\" instead.");
-                }
-
-                if (fsm != null)
-                {
-                    FsmFloat kiljuAlc = fsm.FsmVariables.GetFsmFloat(ContentVarName);
-
-                    if (kiljuAlc.Value == WaterContentValue)
-                    {
-                        _displayGui.Value = "Water";
-                        if(log)
-                            ModConsole.Log("[WaterIsNotKilju DEBUG] ✓ Overrode GUIinteraction to \"Water\"");
-                    }
-
-                }
-
+                
+            }
+            if(go == null)
+            {
+                if(log)
+                    ModConsole.Log($"[WaterIsNotKilju DEBUG] Could not find matching game object.");
+                return;
             }
 
+            // Get the configured FSM and check KiljuAlc
+            PlayMakerFSM fsm = go.GetPlayMaker(BottleFsmName);
+            if (fsm != null)
+            {
+                FsmFloat kiljuAlc = fsm.FsmVariables.GetFsmFloat(ContentVarName);
+
+                if (kiljuAlc.Value == WaterContentValue)
+                {
+                    _displayGui.Value = "Water";
+                    if(log)
+                        ModConsole.Log("[WaterIsNotKilju DEBUG] ✓ Overrode GUIinteraction to \"Water\"");
+                }
+            }
         }
 
         /// <summary>
